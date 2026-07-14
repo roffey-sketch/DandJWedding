@@ -81,6 +81,9 @@ export async function saveMenu(m) { await redis().set(K.menu, m); }
 
 export async function getSelections() { return (await redis().hgetall(K.sel)) || {}; }
 
+export async function getRsvps() { return (await redis().get(K.rsvps)) || []; }
+export async function saveRsvps(l) { await redis().set(K.rsvps, l); }
+
 export function isAdmin(req) {
   const pw = (req.query && req.query.pw) || (req.body && req.body.pw) || req.headers['x-admin-pw'];
   const expected = process.env.ADMIN_PASSWORD;

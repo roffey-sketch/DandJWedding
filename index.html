@@ -6253,15 +6253,13 @@ function applySettings(){
 }
 /* ---------- rsvp ---------- */
 function pick(lbl){ document.querySelectorAll("#attendrow label").forEach(l=>l.classList.remove("sel")); lbl.classList.add("sel"); lbl.querySelector("input").checked=true; }
-function getR(){ try{return JSON.parse(localStorage.getItem("dj_rsvps")||"[]")}catch(e){return[]} }
+function getR(){ return STATE.rsvps||[]; }
 function submitRSVP(e){
   e.preventDefault();
   const att=(document.querySelector('input[name=att]:checked')||{}).value;
   const rec={name:f_name.value.trim(),email:f_email.value.trim(),attending:att,plus:f_plus.value.trim(),
     diet:f_diet.value.trim(),msg:f_msg.value.trim(),when:new Date().toISOString().slice(0,16).replace("T"," "),lang};
-  const all=getR(); all.push(rec); localStorage.setItem("dj_rsvps",JSON.stringify(all));
-  const ep=getS().endpoint;
-  if(ep){ fetch(ep,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify(rec)}).catch(()=>{}); }
+  apiPost("/api/rsvp", rec).catch(()=>{});
   document.getElementById("rsvpform").style.display="none";
   const th=document.getElementById("thanks");
   th.textContent = att==="yes" ? T[lang].thanks_yes : T[lang].thanks_no;
@@ -6272,13 +6270,15 @@ function submitRSVP(e){
 let logged=false;
 function openAdmin(){ document.getElementById("adminmodal").classList.add("open"); }
 function closeAdmin(){ document.getElementById("adminmodal").classList.remove("open"); }
-function doLogin(){
-  const stored=localStorage.getItem("dj_pw")||"DerekJana2026";
-  if(document.getElementById("a_pw").value===stored){
+async function doLogin(){
+  ADMIN_PW = document.getElementById("a_pw").value;
+  try{
+    await loadState();
     logged=true; document.getElementById("loginview").style.display="none";
-    document.getElementById("dashview").style.display="block"; renderDash();
-    const s=getS(); e_venue.value=s.venue||""; e_details.value=s.details||""; e_video.value=s.video||""; e_endpoint.value=s.endpoint||""; e_sname.value=s.senderName||""; e_semail.value=s.senderEmail||""; e_brevo.value=s.brevoKey||""; renderGuests(); showEndpoint();
-  } else alert(T[lang].wrongpw);
+    document.getElementById("dashview").style.display="block";
+    const s=getS(); e_venue.value=s.venue||""; e_details.value=s.details||""; e_video.value=s.video||""; e_endpoint.value=s.endpoint||""; e_sname.value=s.senderName||""; e_semail.value=s.senderEmail||"";
+    renderDash(); renderGuests(); if(typeof renderMenuEditor==="function") renderMenuEditor(); showEndpoint();
+  }catch(e){ ADMIN_PW=""; alert(T[lang].wrongpw); }
 }
 let editingRSVP = -1;
 function renderDash(){
@@ -6312,13 +6312,13 @@ function saveRSVP(i){
   all[i].name=er_name.value.trim(); all[i].email=er_email.value.trim();
   all[i].attending=er_att.value; all[i].plus=er_plus.value.trim();
   all[i].diet=er_diet.value.trim(); all[i].msg=er_msg.value.trim();
-  localStorage.setItem("dj_rsvps", JSON.stringify(all));
+  saveR(all);
   editingRSVP=-1; renderDash();
 }
 function delRSVP(i){
   if(!confirm("Delete this RSVP?")) return;
   const all=getR(); all.splice(i,1);
-  localStorage.setItem("dj_rsvps", JSON.stringify(all));
+  saveR(all);
   editingRSVP=-1; renderDash();
 }
 function esc(s){ return (s||"").replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c])); }
@@ -6366,24 +6366,15 @@ const SEED_GUESTS = [
   ["David Bishop & Julie Bishop","david@bishopslimited.co.uk","en"],
   ["David Roffey & Nova Roffey","davidroffey1@gmail.com","en"]
 ].map((g,i)=>({id:100+i, name:g[0], email:g[1], lang:g[2], sent:false, manual:false, delivered:false, opened:false, clicked:false, messageId:null}));
-function getGuests(){
-  try{
-    const raw = localStorage.getItem("dj_guests");
-    let list = raw===null ? [] : JSON.parse(raw||"[]");
-    if(localStorage.getItem("dj_seed_v2")!=="1"){
-      SEED_GUESTS.forEach(s=>{
-        const dup = list.some(g=>
-          (s.email && g.email && g.email.toLowerCase()===s.email.toLowerCase()) ||
-          g.name.trim().toLowerCase()===s.name.trim().toLowerCase());
-        if(!dup) list.push(s);
-      });
-      localStorage.setItem("dj_seed_v2","1");
-      localStorage.setItem("dj_guests", JSON.stringify(list));
-    }
-    return list;
-  }catch(e){return[]}
-}
-function saveGuests(g){ localStorage.setItem("dj_guests", JSON.stringify(g)); }
+/* ---------- server-backed state (Vercel Redis via /api) ---------- */
+let ADMIN_PW = "";
+let STATE = { guests:[], menu:{open:false,courses:{starter:[],main:[],dessert:[]}}, selections:{}, rsvps:[] };
+async function apiGet(path){ const r=await fetch(path,{cache:"no-store"}); const d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.error||("HTTP "+r.status)); return d; }
+async function apiPost(path,body){ const r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})}); const d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.error||("HTTP "+r.status)); return d; }
+async function loadState(){ STATE = await apiGet("/api/state?pw="+encodeURIComponent(ADMIN_PW)); }
+function getGuests(){ return STATE.guests||[]; }
+function saveGuests(g){ STATE.guests=g; apiPost("/api/state?pw="+encodeURIComponent(ADMIN_PW),{guests:g}).catch(e=>alert("Save failed: "+e.message)); }
+function saveR(all){ STATE.rsvps=all; apiPost("/api/state?pw="+encodeURIComponent(ADMIN_PW),{rsvps:all}).catch(e=>alert("Save failed: "+e.message)); }
 function addGuest(){
   const name=g_name.value.trim(), email=g_email.value.trim(), glang=g_lang.value;
   if(!name || !/.+@.+\..+/.test(email)){ alert("Please enter a name and a valid email."); return; }
@@ -6409,54 +6400,22 @@ function inviteHTML(g){
   </table></td></tr></table></body></html>`;
 }
 async function sendInvite(id){
-  const g=getGuests(); const guest=g.find(x=>x.id===id); if(!guest) return;
-  const s=getS();
-  if(s.brevoKey && s.senderEmail){
-    try{
-      const r=await fetch("https://api.brevo.com/v3/smtp/email",{method:"POST",
-        headers:{"api-key":s.brevoKey,"Content-Type":"application/json","Accept":"application/json"},
-        body:JSON.stringify({sender:{name:s.senderName||"Derek & Jana",email:s.senderEmail},
-          to:[{email:guest.email,name:guest.name}],subject:inviteSubject(guest),
-          htmlContent:inviteHTML(guest),tags:["dj-wedding-invite"]})});
-      const data=await r.json().catch(()=>({}));
-      if(r.ok){ guest.sent=true; guest.manual=false; guest.messageId=data.messageId||null; saveGuests(g); renderGuests(); }
-      else alert("Brevo error: "+(data.message||r.status));
-    }catch(e){ alert("Could not reach Brevo from the browser ("+e.message+"). Use the mail-app fallback: remove the API key, or send from Brevo directly."); }
-  } else {
-    const bodyTxt = (guest.lang==="sk"
-      ? `Milá/Milý ${guest.name},\n\nS láskou Vás pozývame na náš sobáš — utorok 11. augusta 2026 o 13:00, Lewes Register Office.\n\nPozvánka a RSVP: ${SITE_URL}`
-      : `Dear ${guest.name},\n\nWith love and joy we invite you to our wedding — Tuesday 11 August 2026, 1:00 pm, Lewes Register Office.\n\nInvitation & RSVP: ${SITE_URL}`);
-    const gmail = "https://mail.google.com/mail/?view=cm&fs=1&to=" + encodeURIComponent(guest.email)
-      + "&su=" + encodeURIComponent(inviteSubject(guest))
-      + "&body=" + encodeURIComponent(bodyTxt);
-    const w = window.open(gmail, "_blank");
-    if(!w) alert("Your browser blocked the Gmail window — please allow pop-ups for this site and try again.");
-    guest.sent=true; guest.manual=true; saveGuests(g); renderGuests();
-  }
+  try{
+    const d=await apiPost("/api/send?pw="+encodeURIComponent(ADMIN_PW),{type:"invite",ids:[id]});
+    await loadState(); renderGuests();
+    const r=(d.results||[])[0]; if(r&&!r.ok) alert("Send failed: "+r.error);
+  }catch(e){ alert("Send failed: "+e.message); }
 }
 async function sendAll(){
-  const s=getS();
-  if(!(s.brevoKey && s.senderEmail)){ alert("Add your Brevo API key and sender email first (bulk send needs Brevo)."); return; }
-  for(const guest of getGuests().filter(x=>!x.sent)){ await sendInvite(guest.id); }
+  if(!confirm("Send the invitation to everyone not yet sent?")) return;
+  try{
+    const d=await apiPost("/api/send?pw="+encodeURIComponent(ADMIN_PW),{type:"invite"});
+    await loadState(); renderGuests(); alert("Sent "+d.sent+" of "+d.total+" invitation(s).");
+  }catch(e){ alert("Send failed: "+e.message); }
 }
 async function refreshMetrics(){
-  const s=getS(); if(!s.brevoKey){ alert("Metrics need a Brevo API key."); return; }
-  const g=getGuests();
-  for(const guest of g.filter(x=>x.sent && !x.manual)){
-    try{
-      const r=await fetch("https://api.brevo.com/v3/smtp/statistics/events?limit=100&email="+encodeURIComponent(guest.email)+"&sort=desc",
-        {headers:{"api-key":s.brevoKey,"Accept":"application/json"}});
-      if(!r.ok) continue;
-      const data=await r.json();
-      (data.events||[]).forEach(ev=>{
-        const e=(ev.event||"").toLowerCase();
-        if(e.includes("deliver")) guest.delivered=true;
-        if(e.includes("open")) guest.opened=true;
-        if(e.includes("click")) guest.clicked=true;
-      });
-    }catch(e){}
-  }
-  saveGuests(g); renderGuests();
+  try{ await apiPost("/api/metrics?pw="+encodeURIComponent(ADMIN_PW),{}); await loadState(); renderGuests(); }
+  catch(e){ alert("Metrics refresh failed: "+e.message); }
 }
 function chip(on,label){ return `<span class="chip${on?" on":""}">${label}</span>`; }
 function setGuestRSVP(id, val){
@@ -6473,7 +6432,7 @@ function setGuestRSVP(id, val){
     rec.attending=val; rec.when=new Date().toISOString().slice(0,16).replace("T"," ");
     if(idx===-1) all.push(rec);
   }
-  localStorage.setItem("dj_rsvps", JSON.stringify(all));
+  saveR(all);
   renderGuests(); renderDash();
 }
 function updateGuestField(id, field, val){
@@ -6482,7 +6441,7 @@ function updateGuestField(id, field, val){
   saveGuests(g);
   const all=getR(); const r=all.find(x=>x.fromGuest===id);
   if(r){ r.name=guest.name; r.email=guest.email; r.lang=guest.lang;
-    localStorage.setItem("dj_rsvps", JSON.stringify(all)); renderDash(); }
+    saveR(all); renderDash(); }
 }
 function guestRow(g2){
   const rs = g2.rsvp||"";
