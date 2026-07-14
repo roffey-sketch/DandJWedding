@@ -6147,9 +6147,6 @@ wMdShFKAfD65B/0Xp+H5X0ZuhB6THruQ2IqX2Oh3m/g/y+LAHBDoSSD0IJY/8PsNRGk9qlQ/HBho
 
       <h3 style="margin-top:30px" data-i18n="a_edit">Edit website information</h3>
       <div class="field-grid">
-        <div><label data-i18n="a_venue">Lunch venue name</label><input type="text" id="e_venue"></div>
-        <div><label data-i18n="a_venue2">Lunch venue details / time</label><input type="text" id="e_details"></div>
-        <div><label data-i18n="a_video">Video URL (YouTube or .mp4)</label><input type="text" id="e_video"></div>
         <div><label data-i18n="a_endpoint">RSVP webhook endpoint (optional)</label><input type="text" id="e_endpoint" placeholder="https://formspree.io/f/…">
           <p class="note" id="ep_display" style="display:none;word-break:break-all">Saved: <span id="ep_value"></span> <button class="gact" type="button" onclick="copyEndpoint()">Copy</button></p></div>
         <div><label data-i18n="a_newpw">Change dashboard password</label><input type="text" id="e_pw"></div>
@@ -6290,7 +6287,7 @@ async function doLogin(){
     await loadState();
     logged=true; document.getElementById("loginview").style.display="none";
     document.getElementById("dashview").style.display="block";
-    const s=getS(); e_venue.value=s.venue||""; e_details.value=s.details||""; e_video.value=s.video||""; e_endpoint.value=s.endpoint||""; e_sname.value=s.senderName||""; e_semail.value=s.senderEmail||"";
+    const s=getS(); e_endpoint.value=s.endpoint||""; e_sname.value=s.senderName||""; e_semail.value=s.senderEmail||"";
     renderDash(); renderGuests(); if(typeof renderMenuEditor==="function") renderMenuEditor(); showEndpoint();
   }catch(e){ ADMIN_PW=""; alert(T[lang].wrongpw); }
 }
@@ -6347,7 +6344,7 @@ function exportCSV(){
 function clearRSVP(){ if(confirm("Delete all responses?")){ localStorage.removeItem("dj_rsvps"); renderDash(); } }
 function saveSettings(){
   const s=getS();
-  s.venue=e_venue.value.trim(); s.details=e_details.value.trim(); s.video=e_video.value.trim(); s.endpoint=e_endpoint.value.trim();
+  s.endpoint=e_endpoint.value.trim();
   s.senderName=e_sname.value.trim(); s.senderEmail=e_semail.value.trim(); s.brevoKey=e_brevo.value.trim();
   localStorage.setItem("dj_settings",JSON.stringify(s));
   if(e_pw.value.trim()) localStorage.setItem("dj_pw",e_pw.value.trim());
@@ -6636,7 +6633,8 @@ async function initMenuView(){
   });
 }
 /* init */
-setLang(lang); applySettings(); renderCount(); initMenuView();
+setLang(lang); applySettings(); renderCount();
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", initMenuView); else initMenuView();
 </script>
 <style>
 #menuview{font-family:'Cormorant Garamond',Georgia,serif;color:#22392E}

@@ -8,7 +8,11 @@ export default async function handler(req, res) {
   if (!key) return reply(res, 400, { error: 'BREVO_API_KEY not set' });
   try {
     const guests = await getGuests();
-    for (const g of guests.filter(x => x.sent && !x.manual && x.email)) {
+    let checked = 0;
+    // Check every guest with an email: if Brevo has any event for them, the invite
+    // was sent — so this also RECONSTRUCTS sent/tracking after the Redis migration
+    // re-seeded the guest list (the real send record lives in Brevo).
+    for (const g of guests.filter(x => x.email)) {
       try {
         const r = await fetch(
           'https://api.brevo.com/v3/smtp/statistics/events?limit=100&sort=desc&email=' + encodeURIComponent(g.email),
@@ -16,16 +20,19 @@ export default async function handler(req, res) {
         );
         if (!r.ok) continue;
         const data = await r.json();
-        for (const ev of (data.events || [])) {
+        const events = data.events || [];
+        if (events.length && !g.manual) { g.sent = true; g.manual = false; }
+        for (const ev of events) {
           const e = String(ev.event || '').toLowerCase();
           if (e.includes('deliver')) g.delivered = true;
           if (e.includes('open')) g.opened = true;
           if (e.includes('click')) g.clicked = true;
         }
+        checked++;
       } catch (e) { /* skip this guest */ }
     }
     await saveGuests(guests);
-    return reply(res, 200, { ok: true });
+    return reply(res, 200, { ok: true, checked });
   } catch (e) {
     return reply(res, 500, { error: String(e && e.message || e) });
   }
