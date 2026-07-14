@@ -1,11 +1,19 @@
 import { Redis } from '@upstash/redis';
 
 let _r;
+// Vercel prefixes store env vars with the store name (e.g. dandJWedding_KV_REST_API_URL),
+// so match by suffix rather than exact name. Exclude the read-only token.
+function envBySuffix(suffix) {
+  const key = Object.keys(process.env).find(
+    k => k.endsWith(suffix) && !k.endsWith('READ_ONLY_' + suffix.replace(/^_/, '')) && process.env[k]
+  );
+  return key ? process.env[key] : undefined;
+}
 export function redis() {
   if (_r) return _r;
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) throw new Error('Redis env vars missing (KV_REST_API_URL / KV_REST_API_TOKEN)');
+  const url = envBySuffix('KV_REST_API_URL') || envBySuffix('UPSTASH_REDIS_REST_URL');
+  const token = envBySuffix('KV_REST_API_TOKEN') || envBySuffix('UPSTASH_REDIS_REST_TOKEN');
+  if (!url || !token) throw new Error('Redis env vars missing (need *KV_REST_API_URL / *KV_REST_API_TOKEN)');
   _r = new Redis({ url, token });
   return _r;
 }
