@@ -6549,17 +6549,19 @@ function toggleMusic(){
 function tryAutoplay(){
   bgm.volume = 0.7;
   bgm.play().then(()=>setMusicUI(true)).catch(()=>{
-    bgm.muted = true;
-    bgm.play().catch(()=>{});
+    bgm.muted = true; bgm.play().catch(()=>{});
     setMusicUI(false);
-    const unmute = ()=>{
+    const start = (e)=>{
+      document.removeEventListener("pointerdown", start, true);
+      document.removeEventListener("touchstart", start, true);
+      document.removeEventListener("keydown", start, true);
+      if(e && e.target && e.target.closest && e.target.closest("#musicbtn")) return; /* let the button control itself */
       bgm.muted = false; bgm.volume = 0.7;
-      bgm.play().then(()=>{
-        setMusicUI(true);
-        ["pointerdown","touchstart","keydown"].forEach(ev=>document.removeEventListener(ev, unmute));
-      }).catch(()=>{ bgm.muted = true; bgm.play().catch(()=>{}); });
+      bgm.play().then(()=>setMusicUI(true)).catch(()=>{});
     };
-    ["pointerdown","touchstart","keydown"].forEach(ev=>document.addEventListener(ev, unmute));
+    document.addEventListener("pointerdown", start, true);
+    document.addEventListener("touchstart", start, true);
+    document.addEventListener("keydown", start, true);
   });
 }
 tryAutoplay();
