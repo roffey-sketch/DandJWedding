@@ -6394,7 +6394,6 @@ function removeGuest(id){ if(!confirm("Remove this guest?")) return; saveGuests(
 function inviteSubject(g){ return g.lang==="sk" ? "Derek a Jana sa berú — 11. augusta 2026 · Lewes" : "Derek & Jana are getting married — 11 August 2026 · Lewes"; }
 function inviteHTML(g){
   const sk = g.lang==="sk";
-  const img = IMG_BASE + (sk ? "invite-sk.jpg" : "invite-en.jpg");
   const t = sk ? {hi:`Milá/Milý ${esc(g.name)},`, btn:"ZOBRAZIŤ POZVÁNKU A ODPOVEDAŤ",
     rsvp:"Odpovedzte prosím do utorka 28. júla 2026 na www.derekandjana.com"}
   : {hi:`Dear ${esc(g.name)},`, btn:"VIEW INVITATION & RSVP",
@@ -6403,7 +6402,7 @@ function inviteHTML(g){
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#F1ECE1;padding:24px 0"><tr><td align="center">
   <table width="600" cellpadding="0" cellspacing="0">
   <tr><td align="center" style="padding:0 0 14px;font-family:Georgia,serif;color:#22392E;font-size:17px">${t.hi}</td></tr>
-  <tr><td align="center"><a href="${SITE_URL}"><img src="${img}" width="600" alt="Wedding invitation — Derek &amp; Jana, 11 August 2026, Lewes" style="display:block;width:100%;max-width:600px;border:0;border-radius:6px"></a></td></tr>
+  <tr><td align="center"><a href="${SITE_URL}" style="text-decoration:none"><table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#22392E;border-radius:6px"><tr><td align="center" style="padding:46px 30px"><div style="font-family:Arial,sans-serif;font-size:11px;letter-spacing:4px;color:#C9B98A;text-transform:uppercase">${sk?"Ste srdečne pozvaní":"You are warmly invited"}</div><div style="font-family:Georgia,serif;font-size:44px;line-height:1.1;color:#F1ECE1;padding:14px 0 4px">Derek <span style="color:#C9B98A;font-style:italic">&amp;</span> Jana</div><div style="width:60px;height:1px;background:#C9B98A;margin:16px auto;line-height:1px;font-size:0">&nbsp;</div><div style="font-family:Georgia,serif;font-size:16px;letter-spacing:3px;color:#F1ECE1">${sk?"UTOROK · 11. AUGUSTA 2026":"TUESDAY · 11 AUGUST 2026"}</div><div style="font-family:Arial,sans-serif;font-size:12px;letter-spacing:2px;color:#B9C3B4;padding-top:8px">${sk?"Lewes, Anglicko":"Lewes, England"}</div></td></tr></table></a></td></tr>
   <tr><td align="center" style="padding:26px 0 8px"><a href="${SITE_URL}" style="display:inline-block;padding:16px 34px;border:1px solid #22392E;border-radius:40px;color:#22392E;font-family:Arial,sans-serif;font-size:12px;letter-spacing:3px;text-decoration:none">${t.btn}</a></td></tr>
   <tr><td align="center" style="padding:6px 0 30px;font-family:Arial,sans-serif;color:#8a8574;font-size:12px;letter-spacing:1px">${t.rsvp}</td></tr>
   </table></td></tr></table></body></html>`;
