@@ -6133,6 +6133,7 @@ wMdShFKAfD65B/0Xp+H5X0ZuhB6THruQ2IqX2Oh3m/g/y+LAHBDoSSD0IJY/8PsNRGk9qlQ/HBho
       <div class="rowbtns">
         <button onclick="saveMenuFromEditor()">Save menu</button>
         <button onclick="previewMenuEmail()">Preview menu email</button>
+        <button onclick="exportMenuPDF()">Export final menu selections</button>
         <button onclick="clearMenuChoices()">Clear all menu choices</button>
         <button class="solid" onclick="sendMenuEmail()">Send menu email to attending</button>
       </div>
@@ -6569,6 +6570,55 @@ async function sendMenuEmail(){
   if(!confirm("Send the menu email to "+attending+" attending guest(s)?")) return;
   try{ const d=await apiPost("/api/send?pw="+encodeURIComponent(ADMIN_PW),{type:"menu"}); await loadState(); renderGuests(); renderMenuTracker(); alert("Menu email sent to "+d.sent+" of "+d.total+" guest(s)."); }
   catch(e){ alert("Send failed: "+e.message); }
+}
+function dietFor(g){
+  return (STATE.rsvps||[])
+    .filter(r=> r.fromGuest===g.id || (r.email && g.email && r.email.toLowerCase()===g.email.toLowerCase()))
+    .map(r=>r.diet).filter(Boolean).join("; ");
+}
+/* ponytail: native print-to-PDF, no PDF lib. Add one only if we need server-side/automated PDFs. */
+function exportMenuPDF(){
+  const c=menuCourses(), sels=STATE.selections||{};
+  const counts={starter:{},main:{},dessert:{}}; let meals=0;
+  Object.values(sels).forEach(s=>((s&&s.people)||[]).forEach(p=>{ meals++;
+    ["starter","main","dessert"].forEach(k=>{ const v=(p[k]||"").trim(); if(v) counts[k][v]=(counts[k][v]||0)+1; }); }));
+  const countBlock=(title,key)=>{
+    const names=Array.from(new Set([...(c[key]||[]), ...Object.keys(counts[key])]));
+    if(!names.length) return "";
+    let sub=0; const rows=names.map(n=>{ const q=counts[key][n]||0; sub+=q; return `<tr><td>${esc(n)}</td><td class="q">${q}</td></tr>`; }).join("");
+    return `<table class="cnt"><thead><tr><th>${title}</th><th class="q">${sub}</th></tr></thead><tbody>${rows}</tbody></table>`;
+  };
+  const allergies=getGuests().map(g=>({name:g.name,diet:dietFor(g)})).filter(x=>x.diet);
+  const allergyBlock=`<h2>Dietary requirements &amp; allergies</h2>`+(allergies.length
+    ? `<ul class="al">${allergies.map(a=>`<li><strong>${esc(a.name)} — ${esc(a.diet)}</strong></li>`).join("")}</ul>`
+    : `<p><strong>None recorded.</strong></p>`);
+  const rows=getGuests().filter(g=>sels[g.id]).map(g=>{
+    const s=sels[g.id], d=dietFor(g);
+    return ((s&&s.people)||[]).map((p,i)=>`<tr><td>${esc(p.name||g.name)}</td><td>${esc(p.starter||"—")}</td><td>${esc(p.main||"—")}</td><td>${esc(p.dessert||"—")}</td><td>${i===0?esc(d||"—"):""}</td></tr>`).join("");
+  }).join("");
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>Derek and Jana — final menu selections</title><style>
+    body{font-family:Georgia,serif;color:#111;margin:28px}
+    h1{font-size:21px;margin:0 0 3px} .sub{color:#666;font-size:12px;margin-bottom:16px}
+    h2{font-size:13px;text-transform:uppercase;letter-spacing:.1em;margin:20px 0 6px;border-bottom:1px solid #999;padding-bottom:3px}
+    table{width:100%;border-collapse:collapse;margin-bottom:8px}
+    th,td{border-bottom:1px solid #ddd;padding:5px 6px;text-align:left;font-size:12px;vertical-align:top}
+    .q{text-align:right;font-weight:700;width:60px}
+    .cnt th{background:#eee} ul.al{margin:6px 0;padding-left:18px} ul.al li{font-size:13px;margin:3px 0}
+    @page{margin:14mm} @media print{body{margin:0}}
+  </style></head><body>
+  <h1>Derek &amp; Jana — final menu selections</h1>
+  <div class="sub">Pelham House, Lewes · 11 August 2026 · ${meals} meal${meals===1?"":"s"} · generated ${new Date().toLocaleDateString()}</div>
+  <h2>Order counts — dishes to order</h2>
+  ${countBlock("Starters","starter")}${countBlock("Mains","main")}${countBlock("Desserts","dessert")}
+  ${allergyBlock}
+  <h2>Guest selections</h2>
+  <table><thead><tr><th>Guest</th><th>Starter</th><th>Main</th><th>Dessert</th><th>Dietary</th></tr></thead>
+  <tbody>${rows||`<tr><td colspan="5">No selections submitted yet.</td></tr>`}</tbody></table>
+  </body></html>`;
+  const w=window.open("","_blank");
+  if(!w){ alert("Your browser blocked the popup — allow pop-ups for this site and try again."); return; }
+  w.document.write(html); w.document.close(); w.focus();
+  setTimeout(()=>w.print(), 400);
 }
 async function clearMenuChoices(){
   if(!confirm("Delete ALL menu choices submitted by guests? The menu itself stays.")) return;
