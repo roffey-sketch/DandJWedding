@@ -6472,7 +6472,7 @@ function guestRow(g2){
   <td>${chip(g2.sent,g2.manual?"Sent (manual)":"Sent")}${chip(g2.delivered,"Delivered")}${chip(g2.opened,"Opened")}${chip(g2.clicked,"Clicked")}</td>
   <td style="white-space:nowrap"><button class="gact solid" onclick="sendInvite(${g2.id})">${g2.sent?"Resend":"Send"}</button>
   <button class="gact" onclick="previewInvite(${g2.id})">Preview</button>
-  ${g2.rsvp==="yes"?`<button class="gact" onclick="sendMenuTo(${g2.id})">${g2.menuSent?"Resend menu":"Send menu"}</button>`:""}
+  ${g2.rsvp==="yes"?`<button class="gact${g2.menuSent?" solid":""}" onclick="sendMenuTo(${g2.id})">${g2.menuSent?"Send Menu Again":"Send menu"}</button>`:""}
   <button class="gact" onclick="removeGuest(${g2.id})">Remove</button></td></tr>`;
 }
 function renderGuests(){
