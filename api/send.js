@@ -50,15 +50,23 @@ export default async function handler(req, res) {
   try {
     const b = req.body || {};
     const type = b.type === 'menu' ? 'menu' : 'invite';
-    const key = process.env.BREVO_API_KEY;
-    const from = { email: process.env.SENDER_EMAIL, name: process.env.SENDER_NAME || 'Derek & Jana' };
-    if (!key || !from.email) return reply(res, 400, { error: 'Brevo not configured (BREVO_API_KEY, SENDER_EMAIL)' });
 
     const guests = await getGuests();
     let targets;
     if (Array.isArray(b.ids) && b.ids.length) targets = guests.filter(g => b.ids.includes(g.id) && g.email);
     else if (type === 'menu') targets = guests.filter(g => g.rsvp === 'yes' && g.email);
     else targets = guests.filter(g => !g.sent && g.email);
+
+    // Preview: render the same template we'd send, without sending (works without Brevo configured).
+    if (b.preview) {
+      const g = targets[0] || guests.find(x => x.email) || guests[0] || { name: 'Guest', lang: 'en', token: 'sample' };
+      if (!g.token) g.token = newToken();
+      return reply(res, 200, { html: type === 'menu' ? menuEmail(g) : inviteEmail(g), name: g.name, to: g.email || null });
+    }
+
+    const key = process.env.BREVO_API_KEY;
+    const from = { email: process.env.SENDER_EMAIL, name: process.env.SENDER_NAME || 'Derek & Jana' };
+    if (!key || !from.email) return reply(res, 400, { error: 'Brevo not configured (BREVO_API_KEY, SENDER_EMAIL)' });
 
     const results = [];
     for (const g of targets) {

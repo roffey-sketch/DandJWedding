@@ -6126,12 +6126,13 @@ wMdShFKAfD65B/0Xp+H5X0ZuhB6THruQ2IqX2Oh3m/g/y+LAHBDoSSD0IJY/8PsNRGk9qlQ/HBho
       <h3 style="margin-top:30px">Wedding menu</h3>
       <p class="note" style="margin:2px 0 10px">Enter each course, one dish per line. Save, then email attending guests their personal menu link.</p>
       <div class="field-grid">
-        <div><label>Starter</label><textarea id="menu_starter" rows="4" placeholder="One dish per line" style="width:100%;font-family:inherit;padding:7px;border:1px solid #D8D5C8;background:#fff"></textarea></div>
-        <div><label>Main</label><textarea id="menu_main" rows="4" placeholder="One dish per line" style="width:100%;font-family:inherit;padding:7px;border:1px solid #D8D5C8;background:#fff"></textarea></div>
-        <div><label>Dessert</label><textarea id="menu_dessert" rows="4" placeholder="One dish per line" style="width:100%;font-family:inherit;padding:7px;border:1px solid #D8D5C8;background:#fff"></textarea></div>
+        <div><label>Starter</label><textarea id="menu_starter" rows="4" placeholder="One dish per line" style="width:100%;font-family:inherit;padding:7px;border:1px solid #D8D5C8;background:#fff;color:#111"></textarea></div>
+        <div><label>Main</label><textarea id="menu_main" rows="4" placeholder="One dish per line" style="width:100%;font-family:inherit;padding:7px;border:1px solid #D8D5C8;background:#fff;color:#111"></textarea></div>
+        <div><label>Dessert</label><textarea id="menu_dessert" rows="4" placeholder="One dish per line" style="width:100%;font-family:inherit;padding:7px;border:1px solid #D8D5C8;background:#fff;color:#111"></textarea></div>
       </div>
       <div class="rowbtns">
         <button onclick="saveMenuFromEditor()">Save menu</button>
+        <button onclick="previewMenuEmail()">Preview menu email</button>
         <button class="solid" onclick="sendMenuEmail()">Send menu email to attending</button>
       </div>
       <h3 style="margin-top:26px">Menu order — what to order</h3>
@@ -6470,6 +6471,7 @@ function guestRow(g2){
   <td>${chip(g2.sent,g2.manual?"Sent (manual)":"Sent")}${chip(g2.delivered,"Delivered")}${chip(g2.opened,"Opened")}${chip(g2.clicked,"Clicked")}</td>
   <td style="white-space:nowrap"><button class="gact solid" onclick="sendInvite(${g2.id})">${g2.sent?"Resend":"Send"}</button>
   <button class="gact" onclick="previewInvite(${g2.id})">Preview</button>
+  ${g2.rsvp==="yes"?`<button class="gact" onclick="sendMenuTo(${g2.id})">${g2.menuSent?"Resend menu":"Send menu"}</button>`:""}
   <button class="gact" onclick="removeGuest(${g2.id})">Remove</button></td></tr>`;
 }
 function renderGuests(){
@@ -6566,6 +6568,22 @@ async function sendMenuEmail(){
   if(!confirm("Send the menu email to "+attending+" attending guest(s)?")) return;
   try{ const d=await apiPost("/api/send?pw="+encodeURIComponent(ADMIN_PW),{type:"menu"}); await loadState(); renderGuests(); renderMenuTracker(); alert("Menu email sent to "+d.sent+" of "+d.total+" guest(s)."); }
   catch(e){ alert("Send failed: "+e.message); }
+}
+async function sendMenuTo(id){
+  try{
+    const d=await apiPost("/api/send?pw="+encodeURIComponent(ADMIN_PW),{type:"menu",ids:[id]});
+    await loadState(); renderGuests(); renderMenuTracker();
+    const r=(d.results||[])[0];
+    if(r&&!r.ok) alert("Send failed: "+r.error); else alert("Menu email sent.");
+  }catch(e){ alert("Send failed: "+e.message); }
+}
+async function previewMenuEmail(){
+  try{
+    const d=await apiPost("/api/send?pw="+encodeURIComponent(ADMIN_PW),{type:"menu",preview:true});
+    const w=document.getElementById("previewwrap"); w.style.display="block";
+    document.getElementById("previewframe").srcdoc=d.html;
+    w.scrollIntoView({block:"nearest"});
+  }catch(e){ alert("Preview failed: "+e.message); }
 }
 function renderMenuTracker(){
   const el=document.getElementById("menutracker"); if(!el) return;
