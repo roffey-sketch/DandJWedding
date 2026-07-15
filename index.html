@@ -6133,6 +6133,7 @@ wMdShFKAfD65B/0Xp+H5X0ZuhB6THruQ2IqX2Oh3m/g/y+LAHBDoSSD0IJY/8PsNRGk9qlQ/HBho
       <div class="rowbtns">
         <button onclick="saveMenuFromEditor()">Save menu</button>
         <button onclick="previewMenuEmail()">Preview menu email</button>
+        <button onclick="clearMenuChoices()">Clear all menu choices</button>
         <button class="solid" onclick="sendMenuEmail()">Send menu email to attending</button>
       </div>
       <h3 style="margin-top:26px">Menu order — what to order</h3>
@@ -6568,6 +6569,13 @@ async function sendMenuEmail(){
   if(!confirm("Send the menu email to "+attending+" attending guest(s)?")) return;
   try{ const d=await apiPost("/api/send?pw="+encodeURIComponent(ADMIN_PW),{type:"menu"}); await loadState(); renderGuests(); renderMenuTracker(); alert("Menu email sent to "+d.sent+" of "+d.total+" guest(s)."); }
   catch(e){ alert("Send failed: "+e.message); }
+}
+async function clearMenuChoices(){
+  if(!confirm("Delete ALL menu choices submitted by guests? The menu itself stays.")) return;
+  try{
+    await apiPost("/api/state?pw="+encodeURIComponent(ADMIN_PW),{clearSelections:true});
+    await loadState(); renderMenuTracker(); alert("Menu choices cleared.");
+  }catch(e){ alert("Clear failed: "+e.message); }
 }
 async function sendMenuTo(id){
   try{

@@ -1,4 +1,4 @@
-import { getGuests, saveGuests, getMenu, saveMenu, getSelections, getRsvps, saveRsvps, isAdmin, reply } from './_lib.js';
+import { getGuests, saveGuests, getMenu, saveMenu, getSelections, getRsvps, saveRsvps, isAdmin, reply, redis, K } from './_lib.js';
 
 export default async function handler(req, res) {
   if (!isAdmin(req)) return reply(res, 401, { error: 'unauthorized' });
@@ -9,6 +9,7 @@ export default async function handler(req, res) {
     }
     if (req.method === 'POST') {
       const b = req.body || {};
+      if (b.clearSelections) await redis().del(K.sel);
       if (Array.isArray(b.guests)) await saveGuests(b.guests);
       if (Array.isArray(b.rsvps)) await saveRsvps(b.rsvps);
       if (b.menu) await saveMenu(b.menu);
