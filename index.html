@@ -6124,7 +6124,7 @@ wMdShFKAfD65B/0Xp+H5X0ZuhB6THruQ2IqX2Oh3m/g/y+LAHBDoSSD0IJY/8PsNRGk9qlQ/HBho
         <iframe id="previewframe" style="width:100%;height:520px;border:0"></iframe>
       </div>
       <h3 style="margin-top:30px">Wedding menu</h3>
-      <p class="note" style="margin:2px 0 10px">Enter each course, one dish per line. Save, then email attending guests their personal menu link.</p>
+      <p class="note" style="margin:2px 0 10px">Enter each course, one dish per line: English name first, then an optional Slovak name after a "|" (e.g. <i>Roast chicken | Pečené kurča</i>). Guests see their own language; exports and counts always use the English name. Save, then email attending guests their personal menu link.</p>
       <div class="field-grid">
         <div><label>Starter</label><textarea id="menu_starter" rows="4" placeholder="One dish per line" style="width:100%;font-family:inherit;padding:7px;border:1px solid #D8D5C8;background:#fff;color:#111"></textarea></div>
         <div><label>Main</label><textarea id="menu_main" rows="4" placeholder="One dish per line" style="width:100%;font-family:inherit;padding:7px;border:1px solid #D8D5C8;background:#fff;color:#111"></textarea></div>
@@ -6551,6 +6551,13 @@ function copyEndpoint(){
 /* ---------- menu (Phase 2) ---------- */
 function saveMenu(m){ STATE.menu=m; apiPost("/api/state?pw="+encodeURIComponent(ADMIN_PW),{menu:m}).catch(e=>alert("Save failed: "+e.message)); }
 function menuCourses(){ const c=(STATE.menu&&STATE.menu.courses)||{}; return {starter:c.starter||[], main:c.main||[], dessert:c.dessert||[]}; }
+/* dishes may be entered "English | Slovensky"; the English half is canonical for storage, exports and counts.
+   ponytail: "|" is reserved as the separator — a dish name containing a literal "|" isn't supported. */
+function dishParts(s){ return String(s||"").split("|").map(x=>x.trim()).filter(Boolean); }
+function dishEN(s){ return dishParts(s)[0]||""; }
+function dishFor(s,lang){ const p=dishParts(s); return lang==="sk"?(p[1]||p[0]||""):(p[0]||""); }
+function dishENMap(courses){ const c=courses||menuCourses(), m={}; ["starter","main","dessert"].forEach(k=>(c[k]||[]).forEach(l=>{ const p=dishParts(l); p.forEach(x=>{ m[x]=p[0]; }); if(p.length) m[String(l).trim()]=p[0]; })); return m; }
+function dishNorm(map){ return v=>{ v=String(v||"").trim(); return map[v]||dishEN(v)||v; }; }
 function readLines(id){ const el=document.getElementById(id); return el ? el.value.split("\n").map(s=>s.trim()).filter(Boolean) : []; }
 function renderMenuEditor(){
   const c=menuCourses();
@@ -6579,11 +6586,12 @@ function dietFor(g){
 /* ponytail: native print-to-PDF, no PDF lib. Add one only if we need server-side/automated PDFs. */
 function exportMenuPDF(){
   const c=menuCourses(), sels=STATE.selections||{};
+  const en=dishNorm(dishENMap(c)); // export is for the English venue: map any stored Slovak pick to its English name
   const counts={starter:{},main:{},dessert:{}}; let meals=0;
   Object.values(sels).forEach(s=>((s&&s.people)||[]).forEach(p=>{ meals++;
-    ["starter","main","dessert"].forEach(k=>{ const v=(p[k]||"").trim(); if(v) counts[k][v]=(counts[k][v]||0)+1; }); }));
+    ["starter","main","dessert"].forEach(k=>{ const v=en(p[k]); if(v) counts[k][v]=(counts[k][v]||0)+1; }); }));
   const countBlock=(title,key)=>{
-    const names=Array.from(new Set([...(c[key]||[]), ...Object.keys(counts[key])]));
+    const names=Array.from(new Set([...(c[key]||[]).map(dishEN), ...Object.keys(counts[key])]));
     if(!names.length) return "";
     let sub=0; const rows=names.map(n=>{ const q=counts[key][n]||0; sub+=q; return `<tr><td>${esc(n)}</td><td class="q">${q}</td></tr>`; }).join("");
     return `<table class="cnt"><thead><tr><th>${title}</th><th class="q">${sub}</th></tr></thead><tbody>${rows}</tbody></table>`;
@@ -6594,7 +6602,7 @@ function exportMenuPDF(){
     : `<p><strong>None recorded.</strong></p>`);
   const rows=getGuests().filter(g=>sels[g.id]).map(g=>{
     const s=sels[g.id], d=dietFor(g);
-    return ((s&&s.people)||[]).map((p,i)=>`<tr><td>${esc(p.name||g.name)}</td><td>${esc(p.starter||"—")}</td><td>${esc(p.main||"—")}</td><td>${esc(p.dessert||"—")}</td><td>${i===0?esc(d||"—"):""}</td></tr>`).join("");
+    return ((s&&s.people)||[]).map((p,i)=>`<tr><td>${esc(p.name||g.name)}</td><td>${esc(en(p.starter)||"—")}</td><td>${esc(en(p.main)||"—")}</td><td>${esc(en(p.dessert)||"—")}</td><td>${i===0?esc(d||"—"):""}</td></tr>`).join("");
   }).join("");
   const html=`<!doctype html><html><head><meta charset="utf-8"><title>Derek and Jana — final menu selections</title><style>
     body{font-family:Georgia,serif;color:#111;margin:28px}
@@ -6646,13 +6654,14 @@ async function previewMenuEmail(){
 function renderMenuTracker(){
   const el=document.getElementById("menutracker"); if(!el) return;
   const c=menuCourses(); const sels=STATE.selections||{};
+  const en=dishNorm(dishENMap(c)); // dashboard counts in English, whatever language the pick was stored in
   const counts={starter:{},main:{},dessert:{}}; let meals=0;
   Object.values(sels).forEach(s=>{ ((s&&s.people)||[]).forEach(p=>{ meals++;
-    ["starter","main","dessert"].forEach(k=>{ const v=(p[k]||"").trim(); if(v) counts[k][v]=(counts[k][v]||0)+1; }); }); });
+    ["starter","main","dessert"].forEach(k=>{ const v=en(p[k]); if(v) counts[k][v]=(counts[k][v]||0)+1; }); }); });
   const chosen=new Set(Object.keys(sels).map(x=>parseInt(x,10)));
   const pending=getGuests().filter(g=>g.rsvp==="yes" && !chosen.has(g.id));
   function tbl(title,key){
-    const names=Array.from(new Set([...(c[key]||[]), ...Object.keys(counts[key])]));
+    const names=Array.from(new Set([...(c[key]||[]).map(dishEN), ...Object.keys(counts[key])]));
     let sub=0; let rows=names.map(n=>{ const q=counts[key][n]||0; sub+=q; return `<tr><td style="padding:2px 8px">${esc(n)}</td><td style="padding:2px 8px;text-align:right;font-weight:600">${q}</td></tr>`; }).join("");
     if(!names.length) rows=`<tr><td style="padding:2px 8px;color:#8a8574">No items</td><td></td></tr>`;
     return `<table style="width:100%;border-collapse:collapse;margin-bottom:12px"><tr><th style="text-align:left;padding:2px 8px;border-bottom:1px solid #C9CFC4">${title}</th><th style="text-align:right;padding:2px 8px;border-bottom:1px solid #C9CFC4">${sub}</th></tr>${rows}</table>`;
@@ -6684,7 +6693,8 @@ async function initMenuView(){
   let people=(data.selection&&data.selection.people&&data.selection.people.length)
     ? data.selection.people.map(p=>({name:p.name||"",starter:p.starter||"",main:p.main||"",dessert:p.dessert||""}))
     : Array.from({length:(g.plus?2:1)},(_,i)=>({name:i===0?(g.name||""):"",starter:"",main:"",dessert:""}));
-  const opts=(arr,s)=>`<option value="">— choose —</option>`+(arr||[]).map(n=>`<option ${s===n?"selected":""}>${esc(n)}</option>`).join("");
+  const EN=dishNorm(dishENMap(c)); // guests see their language, but the option VALUE (what gets stored) is always the English name
+  const opts=(arr,s)=>`<option value="">— choose —</option>`+(arr||[]).map(n=>`<option value="${esc(dishEN(n))}" ${EN(s)===dishEN(n)?"selected":""}>${esc(dishFor(n,g.lang))}</option>`).join("");
   const selHTML=(i,course,val)=> (c[course]||[]).length ? `<label class="ml">${course}</label><select data-i="${i}" data-c="${course}" class="ms">${opts(c[course],val)}</select>` : "";
   const personHTML=(p,i)=>`<div class="mperson"><div class="mph">Guest ${i+1}</div><label class="ml">Name</label><input data-i="${i}" data-c="name" class="mi" value="${esc(p.name)}">${selHTML(i,"starter",p.starter)}${selHTML(i,"main",p.main)}${selHTML(i,"dessert",p.dessert)}</div>`;
   const collect=()=>{ const arr=[]; wrap.querySelectorAll(".mperson").forEach((blk,i)=>{ const o={name:"",starter:"",main:"",dessert:""}; blk.querySelectorAll("[data-c]").forEach(inp=>{ o[inp.getAttribute("data-c")]=inp.value; }); arr[i]=o; }); return arr; };
