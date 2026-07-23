@@ -6613,9 +6613,16 @@ function exportMenuPDF(){
   const allergyBlock=`<h2>Dietary requirements &amp; allergies</h2>`+(allergies.length
     ? `<ul class="al">${allergies.map(a=>`<li><strong>${esc(a.name)} — ${esc(a.diet)}</strong></li>`).join("")}</ul>`
     : `<p><strong>None recorded.</strong></p>`);
-  const rows=getGuests().filter(g=>sels[g.id]).map(g=>{
+  // per-person dietary lookup so an allergy shows on the right row even inside someone else's party
+  const dietByName=n=>{ n=String(n||"").trim().toLowerCase(); return n?(STATE.rsvps||[]).filter(r=>String(r.name||"").trim().toLowerCase()===n).map(r=>r.diet).filter(Boolean).join("; "):""; };
+  // attending guests with no selection still get a row — their dietary needs must reach the caterer
+  const rows=getGuests().filter(g=>sels[g.id]||g.rsvp==="yes").map(g=>{
     const s=sels[g.id], d=dietFor(g);
-    return ((s&&s.people)||[]).map((p,i)=>`<tr><td>${esc(p.name||g.name)}</td><td>${esc(en(p.starter)||"—")}</td><td>${esc(en(p.main)||"—")}</td><td>${esc(en(p.dessert)||"—")}</td><td>${i===0?esc(d||"—"):""}</td></tr>`).join("");
+    const people=(s&&s.people&&s.people.length)?s.people:[{name:g.name,starter:"",main:"",dessert:""}];
+    return people.map((p,i)=>{
+      const pd=(i===0?(d||dietByName(p.name)):dietByName(p.name));
+      return `<tr><td>${esc(p.name||g.name)}</td><td>${esc(en(p.starter)||"—")}</td><td>${esc(en(p.main)||"—")}</td><td>${esc(en(p.dessert)||"—")}</td><td>${esc(pd||"—")}</td></tr>`;
+    }).join("");
   }).join("");
   const html=`<!doctype html><html><head><meta charset="utf-8"><title>Derek and Jana — final menu selections</title><style>
     body{font-family:Georgia,serif;color:#111;margin:28px}
