@@ -6137,6 +6137,9 @@ wMdShFKAfD65B/0Xp+H5X0ZuhB6THruQ2IqX2Oh3m/g/y+LAHBDoSSD0IJY/8PsNRGk9qlQ/HBho
         <button onclick="clearMenuChoices()">Clear all menu choices</button>
         <button class="solid" onclick="sendMenuEmail()">Send menu email to attending</button>
       </div>
+      <h3 style="margin-top:26px">Guest menu selections</h3>
+      <p class="note" style="margin:2px 0 10px">Names and dishes are editable. Changes save automatically.</p>
+      <div id="seleditor" style="overflow:auto">Log in and add a menu to edit selections.</div>
       <h3 style="margin-top:26px">Menu order — what to order</h3>
       <div id="menutracker" style="overflow:auto">Log in and add a menu to see counts.</div>
 
@@ -6578,9 +6581,17 @@ async function sendMenuEmail(){
   try{ const d=await apiPost("/api/send?pw="+encodeURIComponent(ADMIN_PW),{type:"menu"}); await loadState(); renderGuests(); renderMenuTracker(); alert("Menu email sent to "+d.sent+" of "+d.total+" guest(s)."); }
   catch(e){ alert("Send failed: "+e.message); }
 }
+/* ponytail: name match is exact after trim/lowercase — a typo'd RSVP name still won't link,
+   but the export's orphan-diet fallback catches anything unlinked. */
+function rsvpMatchesGuest(r,g){
+  const nm=String(g.name||"").trim().toLowerCase();
+  return r.fromGuest===g.id
+    || (r.email && g.email && r.email.toLowerCase()===g.email.toLowerCase())
+    || (nm && String(r.name||"").trim().toLowerCase()===nm);
+}
 function dietFor(g){
   return (STATE.rsvps||[])
-    .filter(r=> r.fromGuest===g.id || (r.email && g.email && r.email.toLowerCase()===g.email.toLowerCase()))
+    .filter(r=>rsvpMatchesGuest(r,g))
     .map(r=>r.diet).filter(Boolean).join("; ");
 }
 /* ponytail: native print-to-PDF, no PDF lib. Add one only if we need server-side/automated PDFs. */
@@ -6597,6 +6608,8 @@ function exportMenuPDF(){
     return `<table class="cnt"><thead><tr><th>${title}</th><th class="q">${sub}</th></tr></thead><tbody>${rows}</tbody></table>`;
   };
   const allergies=getGuests().map(g=>({name:g.name,diet:dietFor(g)})).filter(x=>x.diet);
+  // diets from RSVPs that matched no guest (different email, typo'd name) must still reach the caterer
+  (STATE.rsvps||[]).forEach(r=>{ if(r.diet && !getGuests().some(g=>rsvpMatchesGuest(r,g))) allergies.push({name:(r.name||"Unmatched RSVP")+" (from RSVP form)",diet:r.diet}); });
   const allergyBlock=`<h2>Dietary requirements &amp; allergies</h2>`+(allergies.length
     ? `<ul class="al">${allergies.map(a=>`<li><strong>${esc(a.name)} — ${esc(a.diet)}</strong></li>`).join("")}</ul>`
     : `<p><strong>None recorded.</strong></p>`);
@@ -6670,7 +6683,63 @@ function renderMenuTracker(){
     `<div style="margin-bottom:8px;font-weight:600">${meals} meal${meals===1?"":"s"} chosen`+(pending.length?` · ${pending.length} attending still to choose`:``)+`</div>`+
     tbl("Starters","starter")+tbl("Mains","main")+tbl("Desserts","dessert")+
     (pending.length?`<div style="color:#8a8574;font-size:12px">Still to choose: ${pending.map(g=>esc(g.name)).join(", ")}</div>`:`<div style="color:#4a7a4a;font-size:12px">Everyone attending has chosen.</div>`);
+  renderSelEditor();
 }
+/* ---------- per-guest selection editor (admin) ---------- */
+function renderSelEditor(){
+  const el=document.getElementById("seleditor"); if(!el) return;
+  const c=menuCourses(), en=dishNorm(dishENMap(c));
+  const dishes={starter:(c.starter||[]).map(dishEN),main:(c.main||[]).map(dishEN),dessert:(c.dessert||[]).map(dishEN)};
+  const sels=STATE.selections||{};
+  const guests=getGuests().filter(g=>g.rsvp==="yes"||sels[g.id]);
+  if(!guests.length){ el.innerHTML="No attending guests yet."; return; }
+  const st=`style="padding:6px;border:1px solid #D8D5C8;background:#fff;font-family:inherit;font-size:13px;max-width:180px"`;
+  const td=`style="padding:4px 8px;vertical-align:top"`;
+  const dd=(gid,i,course,val)=>{
+    const v=en(val), list=(v&&!dishes[course].includes(v))?[v].concat(dishes[course]):dishes[course];
+    return `<select ${st} onchange="editSel(${gid},${i},'${course}',this.value)"><option value="">— none —</option>${list.map(n=>`<option ${n===v?"selected":""}>${esc(n)}</option>`).join("")}</select>`;
+  };
+  el.innerHTML=`<table style="width:100%;border-collapse:collapse">`+
+    `<tr>${["Guest","Person","Starter","Main","Dessert",""].map(h=>`<th style="text-align:left;padding:4px 8px;border-bottom:1px solid #C9CFC4">${h}</th>`).join("")}</tr>`+
+    guests.map(g=>{
+      const people=((sels[g.id]&&sels[g.id].people)||[]);
+      const rows=people.length?people:[{name:g.name,starter:"",main:"",dessert:""}];
+      return rows.map((p,i)=>`<tr>`+
+        `<td style="padding:4px 8px;vertical-align:top;white-space:nowrap">${i===0?esc(g.name):""}</td>`+
+        `<td ${td}><input ${st} value="${esc(p.name||"")}" onchange="editSel(${g.id},${i},'name',this.value)"></td>`+
+        `<td ${td}>${dd(g.id,i,"starter",p.starter)}</td>`+
+        `<td ${td}>${dd(g.id,i,"main",p.main)}</td>`+
+        `<td ${td}>${dd(g.id,i,"dessert",p.dessert)}</td>`+
+        `<td style="padding:4px 8px;vertical-align:top;white-space:nowrap">${i===rows.length-1?`<button onclick="addSelPerson(${g.id})" title="Add a person to this party">+</button>`:""}${people.length>1?` <button onclick="delSelPerson(${g.id},${i})" title="Remove this person">✕</button>`:""}</td>`+
+      `</tr>`).join("");
+    }).join("")+`</table>`;
+}
+function selRec(gid){
+  const s=(STATE.selections||{})[gid];
+  const people=((s&&s.people)||[]).map(p=>({name:p.name||"",starter:p.starter||"",main:p.main||"",dessert:p.dessert||""}));
+  return {partySize:people.length,people};
+}
+function saveSel(gid,rec){
+  rec.partySize=rec.people.length; rec.when=new Date().toISOString();
+  STATE.selections=STATE.selections||{}; STATE.selections[gid]=rec;
+  apiPost("/api/state?pw="+encodeURIComponent(ADMIN_PW),{selections:{[gid]:rec}}).catch(e=>alert("Save failed: "+e.message));
+  renderMenuTracker();
+}
+function editSel(gid,i,field,val){
+  const en=dishNorm(dishENMap()), rec=selRec(gid);
+  if(!rec.people.length){ const g=getGuests().find(x=>x.id===gid); rec.people=[{name:(g&&g.name)||"",starter:"",main:"",dessert:""}]; }
+  if(!rec.people[i]) return;
+  rec.people[i][field]=val;
+  // normalise every dish on the way through so legacy Slovak values become English on first edit
+  rec.people.forEach(p=>{ ["starter","main","dessert"].forEach(k=>{ p[k]=en(p[k]); }); });
+  saveSel(gid,rec);
+}
+function addSelPerson(gid){
+  const rec=selRec(gid);
+  if(!rec.people.length){ const g=getGuests().find(x=>x.id===gid); rec.people=[{name:(g&&g.name)||"",starter:"",main:"",dessert:""}]; }
+  rec.people.push({name:"",starter:"",main:"",dessert:""}); saveSel(gid,rec);
+}
+function delSelPerson(gid,i){ const rec=selRec(gid); rec.people.splice(i,1); saveSel(gid,rec); }
 /* guest-facing menu selection (opened via ?m=token) */
 function menuShell(inner){
   return `<div style="min-height:100vh;background:#22392E;padding:36px 16px;box-sizing:border-box">
